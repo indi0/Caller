@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📞</title>
+    <link rel="icon" href="img/favicon-answer.ico" type="image/x-icon">
+    <title>Caller</title>
     <style>
         @font-face {
             font-family: 'NokiaFC22';
@@ -20,11 +21,16 @@
         body {
             background-color: var(--bg-color);
             font-family: 'NokiaFC22', sans-serif;
+            margin: 0;
+        }
+
+        #cont {
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             height: 100vh;
             margin: 0;
+            max-width: 700px;
         }
 
         input[type="number"] {
@@ -41,14 +47,20 @@
             margin: 5px;
         }
 
-        #controls, #settings, #call {
+        #controls, #call {
+            display: flex;
+            justify-content: space-evenly;
+            align-items: center;
+        }
+
+        #settings {
             display: flex;
             justify-content: center;
             align-items: center;
         }
 
         #controls {
-            margin-top: 10px;
+            margin-top: 25px;
         }
 
         #settings {
@@ -56,8 +68,20 @@
             flex-direction: column;
         }
 
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
         #call {
-            margin-bottom: 10px;
+            margin-bottom: 25px;
         }
 
         button {
@@ -71,6 +95,43 @@
             font-family: 'NokiaFC22', sans-serif;
         }
 
+        input[type="image"] {
+            width: 100px;
+            margin: 5px;
+            cursor: pointer;
+            animation: pulse 2s infinite;
+        }
+
+        input[type="image"]:disabled {
+            animation: none;
+        }
+
+        @keyframes vibrate {
+            0% { transform: translate(0) rotate(0deg); }
+            25% { transform: translate(-2px, 2px) rotate(-1deg); }
+            50% { transform: translate(2px, -2px) rotate(1deg); }
+            75% { transform: translate(-2px, -2px) rotate(-1deg); }
+            100% { transform: translate(2px, 2px) rotate(1deg); }
+        }
+
+        .vibrate {
+            animation: vibrate 0.1s infinite;
+            filter: blur(1px);
+        }
+
+        #caller-wrapper {
+            display: none; /* Initially hidden */
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        #caller {
+            color: white;
+        }
+
         #start {
             background-color: var(--button-color);
         }
@@ -79,37 +140,42 @@
             background-color: var(--button-red-color);
         }
 
-        #answer {
-            background-color: var(--button-color);
-        }
-
-        #hangup {
-            background-color: var(--button-red-color);
-        }
-
         button:disabled {
             background-color: var(--button-disabled-color) !important;
+            cursor: not-allowed;
+        }
+
+        input:disabled {
+            filter: grayscale(1);
             cursor: not-allowed;
         }
     </style>
 </head>
 <body>
+<div id="cont">
+    <div id="controls">
+        <button id="start">Start</button>
+        <button id="stop" disabled>Stop</button>
+    </div>
 
-<div id="controls">
-    <button id="start">Start</button>
-    <button id="stop" disabled>Stop</button>
-</div>
+    <div id="settings">
+        <label for="min_time">Min Time</label>
+        <input type="number" id="min_time" value="2" min="0" max="120" step="10">
+        <label for="max_time">Max Time</label>
+        <input type="number" id="max_time" value="4" min="10" max="900" step="10">
+    </div>
 
-<div id="settings">
-    <label for="min_time">Min Time</label>
-    <input type="number" id="min_time" value="30" min="0" max="120" step="10">
-    <label for="max_time">Max Time</label>
-    <input type="number" id="max_time" value="60" min="10" max="900" step="10">
-</div>
+    <div id="caller-wrapper">
+        <div id="caller">
+            <p id="phone_number"></p>
+            <img id="caller_ico" src="img/user.png" alt="User" style="width: 200px; margin: 0 auto;">
+        </div>
+    </div>
 
-<div id="call">
-    <button id="answer" disabled>Answer</button>
-    <button id="hangup" disabled>Hangup</button>
+    <div id="call">
+        <input type="image" src="img/answer.png" alt="Answer" id="answer" disabled>
+        <input type="image" src="img/hang-up.png" alt="Hangup" id="hangup" disabled>
+    </div>
 </div>
 
 <script>
@@ -120,9 +186,14 @@
     const minTimeInput = document.getElementById('min_time');
     const maxTimeInput = document.getElementById('max_time');
     const settingsDiv = document.getElementById('settings');
-    // 15 total ringtones
+    const callerDiv = document.getElementById('caller-wrapper');
+    const caller = document.getElementById('caller');
+    const callerIco = document.getElementById('caller_ico');
+    const phoneNumber = document.getElementById('phone_number');
     const ringtones = ['sound/1.mp3', 'sound/2.mp3', 'sound/3.mp3' , 'sound/4.mp3', 'sound/5.mp3', 'sound/6.mp3', 'sound/7.mp3', 'sound/8.mp3', 'sound/9.mp3', 'sound/10.mp3', 'sound/11.mp3', 'sound/12.mp3', 'sound/13.mp3', 'sound/14.mp3', 'sound/15.mp3'];
-    let audio = new Audio();
+    let ringtone = new Audio();
+    let hanguptone = new Audio();
+    hanguptone.src = 'sound/Hang_Up.mp3';
     let callInterval;
     let isAnswered = false;
 
@@ -135,12 +206,31 @@
         return ringtones[randomIndex];
     }
 
+    function setRandomCaller() {
+        let number = "07";
+        number += Math.floor(Math.random() * 2) * 6;
+        number += " ";
+        for (let i = 0; i < 7; i++) {
+            if (i === 3 || i === 5) {
+                number += " ";
+            }
+            number += Math.floor(Math.random() * 10);
+        }
+        phoneNumber.textContent = number;
+
+        // set the user image to a random hue filter
+        callerIco.style.filter = `hue-rotate(${Math.floor(Math.random() * 360)}deg)`;
+    }
+
     function playCallSound() {
         if (!isAnswered) {
-            audio.src = getRandomRingtone();
-            audio.play();
+            ringtone.src = getRandomRingtone();
+            ringtone.play();
+            setRandomCaller();
+            caller.classList.add('vibrate');
             answerButton.disabled = false;
             hangupButton.disabled = true;
+            callerDiv.style.display = 'block';
         }
     }
 
@@ -156,18 +246,22 @@
     });
 
     answerButton.addEventListener('click', () => {
-        audio.pause();
-        audio.currentTime = 0;
+        ringtone.pause();
+        ringtone.currentTime = 0;
         isAnswered = true;
+        caller.classList.remove('vibrate');
         answerButton.disabled = true;
         hangupButton.disabled = false;
     });
 
     hangupButton.addEventListener('click', () => {
-        audio.pause();
-        audio.currentTime = 0;
+        hanguptone.currentTime = 0;
+        hanguptone.play();
+        ringtone.pause();
+        ringtone.currentTime = 0;
         isAnswered = false;
         hangupButton.disabled = true;
+        callerDiv.style.display = 'none';
 
         callInterval = setTimeout(playCallSound, getRandomInterval(minTimeInput.value * 1000, maxTimeInput.value * 1000));
     });
